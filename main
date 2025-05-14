@@ -1,0 +1,122 @@
+
+#include <iostream>
+#include <vector>
+#include <fstream>
+using namespace std;
+
+string xorEncryptDecrypt(const string& input, char key = 'K') {
+    string output = input;
+    for (char& c : output) c ^= key;
+    return output;
+}
+
+template <typename T>
+class PasswordEntry {
+protected:
+    string accountName, username, password, site;
+    T extraInfo;
+public:
+    PasswordEntry(string acct, string user, string pass, string site, T extra)
+        : accountName(acct), username(user), password(pass), site(site), extraInfo(extra) {}
+
+    virtual void display() const = 0;
+    virtual string getType() const = 0;
+    virtual string getExtra() const = 0;
+
+    string getAcct() const { return accountName; }
+    string getUser() const { return username; }
+    string getPass() const { return password; }
+    string getSite() const { return site; }
+};
+
+template <typename T>
+class WebsiteEntry : public PasswordEntry<T> {
+public:
+    WebsiteEntry(string acct, string user, string pass, string site, T extra)
+        : PasswordEntry<T>(acct, user, pass, site, extra) {}
+
+    void display() const override {
+        cout << "\n[Website]\nAccount: " << this->accountName
+             << "\nUser: " << this->username
+             << "\nPass: " << xorEncryptDecrypt(this->password)
+             << "\nSite: " << this->site
+             << "\nURL: " << this->extraInfo << "\n";
+    }
+    string getType() const override { return "Website"; }
+    string getExtra() const override { return "URL: " + this->extraInfo; }
+};
+
+template <typename T>
+class AppEntry : public PasswordEntry<T> {
+public:
+    AppEntry(string acct, string user, string pass, string site, T extra)
+        : PasswordEntry<T>(acct, user, pass, site, extra) {}
+
+    void display() const override {
+        cout << "\n[App]\nAccount: " << this->accountName
+             << "\nUser: " << this->username
+             << "\nPass: " << xorEncryptDecrypt(this->password)
+             << "\nApp: " << this->site
+             << "\nEmail: " << this->extraInfo << "\n";
+    }
+    string getType() const override { return "App"; }
+    string getExtra() const override { return "Email: " + this->extraInfo; }
+};
+
+template <typename T>
+class Manager {
+    vector<PasswordEntry<T>*> entries;
+public:
+    ~Manager() { for (auto e : entries) delete e; }
+
+    void add(PasswordEntry<T>* e) {
+        for (auto x : entries)
+            if (x->getAcct() == e->getAcct()) throw runtime_error("Duplicate account!");
+        if (e->getPass().length() < 8) throw runtime_error("Weak password!");
+        entries.push_back(e);
+    }
+
+    void showAll() const {
+        if (entries.empty()) cout << "No entries.\n";
+        for (auto e : entries) e->display();
+    }
+
+    void save(const string& file) const {
+        ofstream out(file);
+        for (auto e : entries) {
+            out << "[" << e->getType() << "]\n";
+            out << "Account: " << e->getAcct() << "\n";
+            out << "User: " << e->getUser() << "\n";
+            out << "Pass: " << xorEncryptDecrypt(e->getPass()) << "\n";
+            out << "Site: " << e->getSite() << "\n";
+            out << e->getExtra() << "\n---\n";
+        }
+        out.close();
+    }
+};
+
+int main() {
+    Manager<string> mgr;
+    int c;
+    do {
+        cout << "\n1.Website 2.App 3.Show 4.Save 5.Exit: ";
+        cin >> c; cin.ignore();
+        try {
+            string a, u, p, s, x;
+            if (c == 1) {
+                cout << "Acct User Pass Site URL: ";
+                getline(cin, a); getline(cin, u); getline(cin, p); getline(cin, s); getline(cin, x);
+                mgr.add(new WebsiteEntry<string>(a, u, p, s, x));
+            } else if (c == 2) {
+                cout << "Acct User Pass App Email: ";
+                getline(cin, a); getline(cin, u); getline(cin, p); getline(cin, s); getline(cin, x);
+                mgr.add(new AppEntry<string>(a, u, p, s, x));
+            } else if (c == 3) mgr.showAll();
+            else if (c == 4) mgr.save("passwords.txt");
+        } catch (exception& e) {
+            cout << "Error: " << e.what() << "\n";
+        }
+    } while (c != 5);
+    return 0;
+}
+
